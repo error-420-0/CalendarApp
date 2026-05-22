@@ -1,5 +1,8 @@
 package com.example.calendarapp.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,142 +38,184 @@ fun CalendarScreen(
     val showDialog by vm.showDialog.collectAsState()
     val days by vm.daysInMonth.collectAsState()
     val today by vm.today.collectAsState()
+    val dialogDate by vm.dialogDate.collectAsState()
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        // Заголовок с навигацией и кнопкой настроек
-        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp),
-                Arrangement.SpaceBetween,
-                Alignment.CenterVertically
-            ) {
-                IconButton({ vm.previousMonth() }) {
-                    Icon(Icons.Default.ChevronLeft, "Назад")
-                }
+    // Анимация для свайпа
+    var offsetX by remember { mutableStateOf(0f) }
+    val animatedOffset by animateFloatAsState(
+        targetValue = offsetX,
+        animationSpec = tween(300),
+        label = "swipe"
+    )
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        ym.month.getDisplayName(
-                            TextStyle.FULL_STANDALONE,
-                            Locale("ru")
-                        ).replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        ym.year.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Row {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(
-                            Icons.Default.Settings,
-                            "Настройки",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+    // Оборачиваем ВЕСЬ экран в свайп
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        when {
+                            offsetX > 300 -> {
+                                vm.previousMonth()
+                                offsetX = 0f
+                            }
+                            offsetX < -300 -> {
+                                vm.nextMonth()
+                                offsetX = 0f
+                            }
+                            else -> {
+                                offsetX = 0f
+                            }
+                        }
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        offsetX += dragAmount
                     }
-                    IconButton({ vm.nextMonth() }) {
-                        Icon(Icons.Default.ChevronRight, "Вперед")
-                    }
-                }
+                )
             }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Сетка календаря
-        CalendarGrid(
-            days = days,
-            selectedDate = selDate,
-            today = today,
-            getHoliday = { vm.getMajorHoliday(it) },
-            onDateClick = { vm.onDateClick(it) },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        // Список праздников месяца
-        Text(
-            "Праздники в этом месяце:",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
+    ) {
         Column(
             Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-        ) {
-            val monthHolidays = days
-                .filterNotNull()
-                .flatMap { date ->
-                    val h = vm.getMajorHoliday(date)
-                    if (h != null) listOf(h to date.dayOfMonth) else emptyList()
+                .fillMaxSize()
+                .padding(16.dp)
+                .graphicsLayer {
+                    translationX = animatedOffset
                 }
-                .distinctBy { it.first.name }
+        ) {
+            // Заголовок с навигацией и кнопкой настроек
+            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(8.dp),
+                    Arrangement.SpaceBetween,
+                    Alignment.CenterVertically
+                ) {
+                    IconButton({ vm.previousMonth() }) {
+                        Icon(Icons.Default.ChevronLeft, "Назад")
+                    }
 
-            if (monthHolidays.isNotEmpty()) {
-                monthHolidays.forEach { (h, day) ->
-                    Card(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            ym.month.getDisplayName(
+                                TextStyle.FULL_STANDALONE,
+                                Locale("ru")
+                            ).replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
                         )
-                    ) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                h.emoji,
-                                style = MaterialTheme.typography.headlineMedium
+                        Text(
+                            ym.year.toString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Row {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(
+                                Icons.Default.Settings,
+                                "Настройки",
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    h.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    "$day ${
-                                        ym.month.getDisplayName(
-                                            TextStyle.FULL_STANDALONE,
-                                            Locale("ru")
-                                        )
-                                    }",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        }
+                        IconButton({ vm.nextMonth() }) {
+                            Icon(Icons.Default.ChevronRight, "Вперед")
                         }
                     }
                 }
-            } else {
-                Text(
-                    "Нет важных праздников",
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Календарь
+            CalendarGrid(
+                days = days,
+                selectedDate = selDate,
+                today = today,
+                getHoliday = { vm.getMajorHoliday(it) },
+                onDateClick = { vm.onDateClick(it) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // Список праздников месяца
+            Text(
+                "Праздники в этом месяце:",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                val monthHolidays = days
+                    .filterNotNull()
+                    .flatMap { date ->
+                        val h = vm.getMajorHoliday(date)
+                        if (h != null) listOf(h to date.dayOfMonth) else emptyList()
+                    }
+                    .distinctBy { it.first.name }
+
+                if (monthHolidays.isNotEmpty()) {
+                    monthHolidays.forEach { (h, day) ->
+                        Card(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        ) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    h.emoji,
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        h.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "$day ${
+                                            ym.month.getDisplayName(
+                                                TextStyle.FULL_STANDALONE,
+                                                Locale("ru")
+                                            )
+                                        }",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        "Нет важных праздников",
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 
     // Диалог с праздниками
-    val dialogDate by vm.dialogDate.collectAsState()
-
     if (showDialog) {
         HolidayDialog(
             holidays = selHolidays,
