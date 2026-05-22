@@ -42,7 +42,7 @@ fun DayCell(
                 }
             )
             .border(
-                width = if (date != null && date == today) 2.dp else 0.dp,
+                width = if (date == today) 2.dp else 0.dp,
                 color = TodayBlue,
                 shape = CircleShape
             )
@@ -59,14 +59,12 @@ fun DayCell(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
+                    else MaterialTheme.colorScheme.onSurface
                 )
-
                 if (holiday != null) {
                     Text(
                         text = holiday.emoji,
-                        fontSize = if (holiday.name.length > 10) 8.sp else 10.sp,
+                        fontSize = 10.sp,
                         textAlign = TextAlign.Center
                     )
                 }

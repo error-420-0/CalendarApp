@@ -2,6 +2,7 @@ package com.example.calendarapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.calendarapp.data.CalendRuParser
 import com.example.calendarapp.data.Holiday
 import com.example.calendarapp.data.HolidaysRepository
 import kotlinx.coroutines.*
@@ -13,100 +14,102 @@ import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
 class CalendarViewModel : ViewModel() {
-    private val repository = HolidaysRepository()
+    private val repo = HolidaysRepository()
 
-    private val _currentYearMonth = MutableStateFlow(YearMonth.now())
-    val currentYearMonth: StateFlow<YearMonth> = _currentYearMonth
-
-    private val _selectedDate = MutableStateFlow<LocalDate?>(null)
-    val selectedDate: StateFlow<LocalDate?> = _selectedDate
-
-    private val _selectedHoliday = MutableStateFlow<Holiday?>(null)
-    val selectedHoliday: StateFlow<Holiday?> = _selectedHoliday
-
-    private val _daysInMonth = MutableStateFlow<List<LocalDate?>>(emptyList())
-    val daysInMonth: StateFlow<List<LocalDate?>> = _daysInMonth
-
-    private val _today = MutableStateFlow(LocalDate.now())
-    val today: StateFlow<LocalDate> = _today
-
-    private var midnightJob: Job? = null
+    val currentYearMonth = MutableStateFlow(YearMonth.now())
+    val selectedDate = MutableStateFlow<LocalDate?>(null)
+    val selectedHolidays = MutableStateFlow<List<Holiday>>(emptyList())
+    val daysInMonth = MutableStateFlow<List<LocalDate?>>(emptyList())
+    val today = MutableStateFlow(LocalDate.now())
+    val showDialog = MutableStateFlow(false)
 
     init {
-        updateDaysInMonth()
-        startMidnightUpdate()
+        updateDays()
+        startMidnightTimer()
     }
 
-    private fun startMidnightUpdate() {
-        midnightJob?.cancel()
-        midnightJob = viewModelScope.launch {
+    private fun startMidnightTimer() {
+        viewModelScope.launch {
             while (isActive) {
-                // Вычисляем время до следующей полуночи
                 val now = LocalDateTime.now()
                 val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
-                val millisUntilMidnight = ChronoUnit.MILLIS.between(now, midnight)
-
-                // Ждём до полуночи + 1 секунда для надёжности
-                delay(millisUntilMidnight + 1000)
-
-                // Обновляем сегодняшнюю дату
-                _today.value = LocalDate.now()
-
-                // Если наступил новый месяц - обновляем календарь
-                val newYearMonth = YearMonth.now()
-                if (newYearMonth != _currentYearMonth.value) {
-                    _currentYearMonth.value = newYearMonth
-                    updateDaysInMonth()
+                delay(ChronoUnit.MILLIS.between(now, midnight) + 1000)
+                today.value = LocalDate.now()
+                val newMonth = YearMonth.now()
+                if (newMonth != currentYearMonth.value) {
+                    currentYearMonth.value = newMonth
+                    updateDays()
                 }
             }
         }
     }
 
     fun nextMonth() {
-        _currentYearMonth.value = _currentYearMonth.value.plusMonths(1)
-        updateDaysInMonth()
+        currentYearMonth.value = currentYearMonth.value.plusMonths(1)
+        updateDays()
     }
 
     fun previousMonth() {
-        _currentYearMonth.value = _currentYearMonth.value.minusMonths(1)
-        updateDaysInMonth()
+        currentYearMonth.value = currentYearMonth.value.minusMonths(1)
+        updateDays()
     }
 
-    fun selectDate(date: LocalDate) {
-        _selectedDate.value = date
-        _selectedHoliday.value = repository.getHoliday(date.monthValue, date.dayOfMonth)
-    }
+    fun onDateClick(date: LocalDate) {
+        selectedDate.value = date
 
-    fun getHolidayForDate(date: LocalDate): Holiday? {
-        return repository.getHoliday(date.monthValue, date.dayOfMonth)
-    }
+        // Важные праздники сразу
+        val major = listOfNotNull(repo.getMajorHoliday(date.monthValue, date.dayOfMonth))
+        selectedHolidays.value = major
+        showDialog.value = true
 
-    private fun updateDaysInMonth() {
-        val yearMonth = _currentYearMonth.value
-        val days = mutableListOf<LocalDate?>()
+        // Парсим в фоне
+        viewModelScope.launch {
+            try {
+                println("PARSER: Starting parse for ${date.dayOfMonth}/${date.monthValue}")
+                val parsed = withContext(Dispatchers.IO) {
+                    CalendRuParser.getHolidaysForDay(date.monthValue, date.dayOfMonth)
+                }
+                println("PARSER: Got ${parsed.size} holidays")
 
-        val firstDayOfMonth = yearMonth.atDay(1)
-        val lastDayOfMonth = yearMonth.atEndOfMonth()
-
-        val dayOfWeek = firstDayOfMonth.dayOfWeek.value
-        for (i in 1 until dayOfWeek) {
-            days.add(null)
+                if (parsed.isNotEmpty()) {
+                    val all = mutableListOf<Holiday>()
+                    all.addAll(major)
+                    parsed.forEach { h ->
+                        if (all.none { it.name.equals(h.name, ignoreCase = true) }) {
+                            all.add(h)
+                        }
+                    }
+                    selectedHolidays.value = all
+                    println("PARSER: Total holidays to show: ${all.size}")
+                }
+            } catch (e: Exception) {
+                println("PARSER: FAILED - ${e.message}")
+                e.printStackTrace()
+            }
         }
+    }
 
-        for (day in 1..lastDayOfMonth.dayOfMonth) {
-            days.add(yearMonth.atDay(day))
-        }
+    fun getMajorHoliday(date: LocalDate): Holiday? {
+        return repo.getMajorHoliday(date.monthValue, date.dayOfMonth)
+    }
 
-        _daysInMonth.value = days
+    private fun updateDays() {
+        val ym = currentYearMonth.value
+        val list = mutableListOf<LocalDate?>()
+        val first = ym.atDay(1)
+        val last = ym.atEndOfMonth()
+        repeat(first.dayOfWeek.value - 1) { list.add(null) }
+        for (d in 1..last.dayOfMonth) list.add(ym.atDay(d))
+        daysInMonth.value = list
     }
 
     fun clearSelection() {
-        _selectedDate.value = null
-        _selectedHoliday.value = null
+        selectedDate.value = null
+        selectedHolidays.value = emptyList()
+        showDialog.value = false
     }
 
     override fun onCleared() {
         super.onCleared()
-        midnightJob?.cancel()
     }
 }

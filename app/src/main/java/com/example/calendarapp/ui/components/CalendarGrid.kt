@@ -20,46 +20,21 @@ fun CalendarGrid(
     onDateClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dayNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-
-    Column(modifier = modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            dayNames.forEach { day ->
-                Text(
-                    text = day,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach {
+                Text(it, Modifier.weight(1f), textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
             }
         }
+        Spacer(Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        val rows = days.chunked(7)
-        rows.forEach { week ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+        days.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 week.forEach { date ->
-                    DayCell(
-                        date = date,
-                        isSelected = date == selectedDate,
-                        holiday = date?.let { getHoliday(it) },
-                        today = today,
-                        onClick = onDateClick,
-                        modifier = Modifier.weight(1f)
-                    )
+                    DayCell(date, date == selectedDate, date?.let { getHoliday(it) }, today, onDateClick, Modifier.weight(1f))
                 }
-                repeat(7 - week.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
