@@ -22,6 +22,7 @@ class CalendarViewModel : ViewModel() {
     val daysInMonth = MutableStateFlow<List<LocalDate?>>(emptyList())
     val today = MutableStateFlow(LocalDate.now())
     val showDialog = MutableStateFlow(false)
+    val dialogDate = MutableStateFlow<LocalDate?>(null) // Для диалога
 
     init {
         updateDays()
@@ -56,20 +57,17 @@ class CalendarViewModel : ViewModel() {
 
     fun onDateClick(date: LocalDate) {
         selectedDate.value = date
+        dialogDate.value = date // Сохраняем дату для диалога
 
-        // Важные праздники сразу
         val major = listOfNotNull(repo.getMajorHoliday(date.monthValue, date.dayOfMonth))
         selectedHolidays.value = major
         showDialog.value = true
 
-        // Парсим в фоне
         viewModelScope.launch {
             try {
-                println("PARSER: Starting parse for ${date.dayOfMonth}/${date.monthValue}")
                 val parsed = withContext(Dispatchers.IO) {
                     CalendRuParser.getHolidaysForDay(date.monthValue, date.dayOfMonth)
                 }
-                println("PARSER: Got ${parsed.size} holidays")
 
                 if (parsed.isNotEmpty()) {
                     val all = mutableListOf<Holiday>()
@@ -80,11 +78,9 @@ class CalendarViewModel : ViewModel() {
                         }
                     }
                     selectedHolidays.value = all
-                    println("PARSER: Total holidays to show: ${all.size}")
                 }
             } catch (e: Exception) {
-                println("PARSER: FAILED - ${e.message}")
-                e.printStackTrace()
+                // Игнорируем ошибки парсинга
             }
         }
     }

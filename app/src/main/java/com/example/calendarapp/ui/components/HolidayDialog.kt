@@ -14,10 +14,23 @@ import androidx.compose.ui.window.Dialog
 import com.example.calendarapp.data.Holiday
 
 @Composable
-fun HolidayDialog(holidays: List<Holiday>, onDismiss: () -> Unit) {
+fun HolidayDialog(
+    holidays: List<Holiday>,
+    currentMonth: Int,
+    onDismiss: () -> Unit
+) {
     val pageSize = 5
     var currentPage by remember { mutableIntStateOf(0) }
     val totalPages = (holidays.size + pageSize - 1) / pageSize
+
+    val majorHoliday = holidays.find { it.emoji != "📅" }
+
+    val dateInfo = if (holidays.isNotEmpty()) {
+        val h = holidays.first()
+        "${h.day} ${getMonthShort(h.month)}"
+    } else ""
+
+    val topEmoji = majorHoliday?.emoji ?: getMonthEmoji(currentMonth)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -29,24 +42,26 @@ fun HolidayDialog(holidays: List<Holiday>, onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (holidays.isEmpty()) {
-                    Text("📅", fontSize = 64.sp)
+                    Text(getMonthEmoji(currentMonth), fontSize = 64.sp)
                     Spacer(Modifier.height(16.dp))
                     Text("Обычный день", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
                     Text("Загрузка праздников...", style = MaterialTheme.typography.bodyMedium)
                 } else {
-                    Text("📅", fontSize = 48.sp)
-                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "$topEmoji $dateInfo",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
 
-                    // Счётчик праздников
                     Text(
                         "Праздников: ${holidays.size}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                    // Список праздников на текущей странице
                     val start = currentPage * pageSize
                     val end = minOf(start + pageSize, holidays.size)
                     val pageHolidays = holidays.subList(start, end)
@@ -55,7 +70,7 @@ fun HolidayDialog(holidays: List<Holiday>, onDismiss: () -> Unit) {
                         Text(
                             h.name,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center
                         )
                         if (i < pageHolidays.lastIndex) {
@@ -65,7 +80,6 @@ fun HolidayDialog(holidays: List<Holiday>, onDismiss: () -> Unit) {
                         }
                     }
 
-                    // Навигация по страницам
                     if (totalPages > 1) {
                         Spacer(Modifier.height(16.dp))
                         Row(
@@ -99,5 +113,41 @@ fun HolidayDialog(holidays: List<Holiday>, onDismiss: () -> Unit) {
                 Button(onDismiss, Modifier.fillMaxWidth()) { Text("Закрыть") }
             }
         }
+    }
+}
+
+private fun getMonthShort(month: Int): String {
+    return when (month) {
+        1 -> "янв"
+        2 -> "фев"
+        3 -> "мар"
+        4 -> "апр"
+        5 -> "мая"
+        6 -> "июн"
+        7 -> "июл"
+        8 -> "авг"
+        9 -> "сен"
+        10 -> "окт"
+        11 -> "ноя"
+        12 -> "дек"
+        else -> ""
+    }
+}
+
+private fun getMonthEmoji(month: Int): String {
+    return when (month) {
+        1 -> "❄️"
+        2 -> "💨"
+        3 -> "🌱"
+        4 -> "🌷"
+        5 -> "🌸"
+        6 -> "☀️"
+        7 -> "🌻"
+        8 -> "🍎"
+        9 -> "🍂"
+        10 -> "🎃"
+        11 -> "🌧️"
+        12 -> "⛄"
+        else -> "📅"
     }
 }

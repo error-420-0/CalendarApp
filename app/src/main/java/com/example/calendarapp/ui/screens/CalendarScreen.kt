@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,7 +23,10 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(vm: CalendarViewModel = viewModel()) {
+fun CalendarScreen(
+    vm: CalendarViewModel = viewModel(),
+    onSettingsClick: () -> Unit = {}
+) {
     val ym by vm.currentYearMonth.collectAsState()
     val selDate by vm.selectedDate.collectAsState()
     val selHolidays by vm.selectedHolidays.collectAsState()
@@ -31,55 +35,145 @@ fun CalendarScreen(vm: CalendarViewModel = viewModel()) {
     val today by vm.today.collectAsState()
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
+        // Заголовок с навигацией и кнопкой настроек
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-            Row(Modifier.fillMaxWidth().padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                IconButton({ vm.previousMonth() }) { Icon(Icons.Default.ChevronLeft, "Назад") }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(ym.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("ru")).replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(ym.year.toString(), style = MaterialTheme.typography.bodyMedium)
+            Row(
+                Modifier.fillMaxWidth().padding(8.dp),
+                Arrangement.SpaceBetween,
+                Alignment.CenterVertically
+            ) {
+                IconButton({ vm.previousMonth() }) {
+                    Icon(Icons.Default.ChevronLeft, "Назад")
                 }
-                IconButton({ vm.nextMonth() }) { Icon(Icons.Default.ChevronRight, "Вперед") }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        ym.month.getDisplayName(
+                            TextStyle.FULL_STANDALONE,
+                            Locale("ru")
+                        ).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        ym.year.toString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            Icons.Default.Settings,
+                            "Настройки",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton({ vm.nextMonth() }) {
+                        Icon(Icons.Default.ChevronRight, "Вперед")
+                    }
+                }
             }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        CalendarGrid(days, selDate, today, { vm.getMajorHoliday(it) }, { vm.onDateClick(it) })
+        // Сетка календаря
+        CalendarGrid(
+            days = days,
+            selectedDate = selDate,
+            today = today,
+            getHoliday = { vm.getMajorHoliday(it) },
+            onDateClick = { vm.onDateClick(it) },
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(Modifier.height(16.dp))
 
-        Text("Праздники в этом месяце:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        // Список праздников месяца
+        Text(
+            "Праздники в этом месяце:",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
 
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            val monthHolidays = days.filterNotNull()
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            val monthHolidays = days
+                .filterNotNull()
                 .flatMap { date ->
                     val h = vm.getMajorHoliday(date)
                     if (h != null) listOf(h to date.dayOfMonth) else emptyList()
-                }.distinctBy { it.first.name }
+                }
+                .distinctBy { it.first.name }
 
             if (monthHolidays.isNotEmpty()) {
                 monthHolidays.forEach { (h, day) ->
-                    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(h.emoji, style = MaterialTheme.typography.headlineMedium)
+                    Card(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                h.emoji,
+                                style = MaterialTheme.typography.headlineMedium
+                            )
                             Spacer(Modifier.width(12.dp))
                             Column {
-                                Text(h.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                                Text("$day ${ym.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("ru"))}",
-                                    style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    h.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "$day ${
+                                        ym.month.getDisplayName(
+                                            TextStyle.FULL_STANDALONE,
+                                            Locale("ru")
+                                        )
+                                    }",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
                 }
             } else {
-                Text("Нет важных праздников", Modifier.fillMaxWidth().padding(16.dp), textAlign = TextAlign.Center)
+                Text(
+                    "Нет важных праздников",
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 
+    // Диалог с праздниками
+    val dialogDate by vm.dialogDate.collectAsState()
+
     if (showDialog) {
-        HolidayDialog(holidays = selHolidays, onDismiss = { vm.clearSelection() })
+        HolidayDialog(
+            holidays = selHolidays,
+            currentMonth = dialogDate?.monthValue ?: today.monthValue,
+            onDismiss = { vm.clearSelection() }
+        )
     }
 }
