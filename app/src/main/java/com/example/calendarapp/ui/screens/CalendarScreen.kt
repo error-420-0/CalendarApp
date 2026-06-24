@@ -20,20 +20,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.calendarapp.data.Holiday
 import com.example.calendarapp.ui.components.CalendarGrid
 import com.example.calendarapp.viewmodel.CalendarViewModel
 import java.time.format.TextStyle
-import com.example.calendarapp.ui.screens.getMonthEmoji
-import com.example.calendarapp.ui.screens.getMonthShort
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun CalendarScreen(
     vm: CalendarViewModel = viewModel(),
     onSettingsClick: () -> Unit = {}
 ) {
+    val note by vm.currentNote.collectAsState()
+    val showNoteEdit by vm.showNoteDialog.collectAsState()
     val ym by vm.currentYearMonth.collectAsState()
     val selDate by vm.selectedDate.collectAsState()
     val selHolidays by vm.selectedHolidays.collectAsState()
@@ -62,8 +62,14 @@ fun CalendarScreen(
             isLoading = loading,
             errorMessage = errorMsg,
             isOffline = offline,
+            note = note,
+            showNoteEditor = showNoteEdit,
             onBack = { vm.clearSelection() },
-            onClearError = { vm.clearError() }
+            onClearError = { vm.clearError() },
+            onNoteClick = { vm.openNoteEditor() },
+            onNoteSave = { vm.saveNote() },
+            onNoteCancel = { vm.closeNoteEditor() },
+            onNoteChanged = { vm.onNoteChanged(it) }
         )
     } else {
         Box(

@@ -1,20 +1,22 @@
 package com.example.calendarapp.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.calendarapp.data.CalendRuParser
 import com.example.calendarapp.data.Holiday
 import com.example.calendarapp.data.HolidaysRepository
+import com.example.calendarapp.data.NotesRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
-class CalendarViewModel : ViewModel() {
+class CalendarViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = HolidaysRepository()
+    private val notesRepo = NotesRepository(application)
 
     val currentYearMonth = MutableStateFlow(YearMonth.now())
     val selectedDate = MutableStateFlow<LocalDate?>(null)
@@ -26,6 +28,8 @@ class CalendarViewModel : ViewModel() {
     val isLoading = MutableStateFlow(false)
     val errorMessage = MutableStateFlow<String?>(null)
     val isOffline = MutableStateFlow(false)
+    val currentNote = MutableStateFlow("")
+    val showNoteDialog = MutableStateFlow(false)
 
     init {
         updateDays()
@@ -58,13 +62,16 @@ class CalendarViewModel : ViewModel() {
     }
 
     fun onDateClick(date: LocalDate) {
-        println("VIEWMODEL: onDateClick called for $date")
         selectedDate.value = date
         dialogDate.value = date
 
         val major = listOfNotNull(repo.getMajorHoliday(date.monthValue, date.dayOfMonth))
         selectedHolidays.value = major
         showDialog.value = true
+
+        // Загружаем заметку
+        val dateKey = NotesRepository.dateKey(date.monthValue, date.dayOfMonth)
+        currentNote.value = notesRepo.getNote(dateKey)
 
         viewModelScope.launch {
             isLoading.value = true
@@ -89,7 +96,7 @@ class CalendarViewModel : ViewModel() {
 
                 isLoading.value = false
 
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 isLoading.value = false
                 errorMessage.value = "Ошибка загрузки"
             }
@@ -98,6 +105,30 @@ class CalendarViewModel : ViewModel() {
 
     fun getMajorHoliday(date: LocalDate): Holiday? {
         return repo.getMajorHoliday(date.monthValue, date.dayOfMonth)
+    }
+
+    // Методы для заметок
+    fun onNoteChanged(note: String) {
+        currentNote.value = note
+    }
+
+    fun saveNote() {
+        val date = dialogDate.value ?: return
+        val dateKey = NotesRepository.dateKey(date.monthValue, date.dayOfMonth)
+        if (currentNote.value.isBlank()) {
+            notesRepo.deleteNote(dateKey)
+        } else {
+            notesRepo.saveNote(dateKey, currentNote.value)
+        }
+        showNoteDialog.value = false
+    }
+
+    fun openNoteEditor() {
+        showNoteDialog.value = true
+    }
+
+    fun closeNoteEditor() {
+        showNoteDialog.value = false
     }
 
     private fun updateDays() {
