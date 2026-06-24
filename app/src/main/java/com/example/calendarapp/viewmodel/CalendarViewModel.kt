@@ -8,7 +8,6 @@ import com.example.calendarapp.data.HolidaysRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.net.UnknownHostException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
@@ -67,20 +66,15 @@ class CalendarViewModel : ViewModel() {
         selectedHolidays.value = major
         showDialog.value = true
 
-        // Загружаем с сайта
         viewModelScope.launch {
-            println("VIEWMODEL: Starting loadHolidaysForDate")
             isLoading.value = true
             errorMessage.value = null
             isOffline.value = false
 
             try {
                 val parsed = withContext(Dispatchers.IO) {
-                    println("VIEWMODEL: Calling CalendRuParser for ${date.monthValue}/${date.dayOfMonth}")
                     CalendRuParser.getHolidaysForDay(date.monthValue, date.dayOfMonth)
                 }
-
-                println("VIEWMODEL: Got ${parsed.size} parsed holidays")
 
                 if (parsed.isNotEmpty()) {
                     val all = mutableListOf<Holiday>()
@@ -90,19 +84,12 @@ class CalendarViewModel : ViewModel() {
                             all.add(h)
                         }
                     }
-                    println("VIEWMODEL: Total holidays: ${all.size}")
                     selectedHolidays.value = all
                 }
 
                 isLoading.value = false
 
-            } catch (e: UnknownHostException) {
-                println("VIEWMODEL: No internet")
-                isLoading.value = false
-                isOffline.value = true
-                errorMessage.value = "Нет интернета. Показаны основные праздники."
             } catch (e: Exception) {
-                println("VIEWMODEL: Error - ${e.message}")
                 isLoading.value = false
                 errorMessage.value = "Ошибка загрузки"
             }

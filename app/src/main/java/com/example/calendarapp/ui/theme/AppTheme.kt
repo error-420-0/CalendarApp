@@ -1,8 +1,10 @@
 package com.example.calendarapp.ui.theme
 
+import android.content.Context
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 enum class AccentColor(val displayName: String, val primary: Color, val onPrimary: Color) {
     PURPLE("Фиолетовый", Color(0xFF6650a4), Color.White),
@@ -15,7 +17,23 @@ enum class AccentColor(val displayName: String, val primary: Color, val onPrimar
 }
 
 object ThemeManager {
+    private const val PREFS_NAME = "app_theme"
+    private const val KEY_ACCENT = "accent_color"
+
     var currentAccent by mutableStateOf(AccentColor.PURPLE)
+        private set
+
+    fun init(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val accentName = prefs.getString(KEY_ACCENT, AccentColor.PURPLE.name)
+        currentAccent = AccentColor.entries.find { it.name == accentName } ?: AccentColor.PURPLE
+    }
+
+    fun setAccent(context: Context, accent: AccentColor) {
+        currentAccent = accent
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_ACCENT, accent.name).apply()
+    }
 }
 
 @Composable
@@ -23,6 +41,13 @@ fun CalendarAppTheme(
     darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+
+    // Инициализируем тему при первом запуске
+    LaunchedEffect(Unit) {
+        ThemeManager.init(context)
+    }
+
     val accent = ThemeManager.currentAccent
     val colorScheme = if (darkTheme) {
         darkColorScheme(

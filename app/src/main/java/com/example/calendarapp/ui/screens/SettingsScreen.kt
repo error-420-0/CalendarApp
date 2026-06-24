@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.calendarapp.ui.theme.AccentColor
@@ -21,6 +22,7 @@ import com.example.calendarapp.ui.theme.ThemeManager
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     var selectedAccent by remember { mutableStateOf(ThemeManager.currentAccent) }
 
     Scaffold(
@@ -56,10 +58,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            if (selectedAccent != accent) {
-                                selectedAccent = accent
-                                ThemeManager.currentAccent = accent
-                            }
+                            selectedAccent = accent
+                            ThemeManager.setAccent(context, accent)
                         }
                 ) {
                     Row(
@@ -96,7 +96,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Кнопка "Применить"
             item {
                 Spacer(Modifier.height(16.dp))
                 Button(
