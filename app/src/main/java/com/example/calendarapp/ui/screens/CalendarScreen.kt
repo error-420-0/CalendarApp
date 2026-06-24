@@ -39,8 +39,10 @@ fun CalendarScreen(
     val days by vm.daysInMonth.collectAsState()
     val today by vm.today.collectAsState()
     val dialogDate by vm.dialogDate.collectAsState()
+    val loading by vm.isLoading.collectAsState()
+    val errorMsg by vm.errorMessage.collectAsState()
+    val offline by vm.isOffline.collectAsState()
 
-    // Анимация для свайпа
     var offsetX by remember { mutableStateOf(0f) }
     val animatedOffset by animateFloatAsState(
         targetValue = offsetX,
@@ -48,7 +50,6 @@ fun CalendarScreen(
         label = "swipe"
     )
 
-    // Оборачиваем ВЕСЬ экран в свайп
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -79,11 +80,9 @@ fun CalendarScreen(
             Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .graphicsLayer {
-                    translationX = animatedOffset
-                }
+                .graphicsLayer { translationX = animatedOffset }
         ) {
-            // Заголовок с навигацией и кнопкой настроек
+            // Заголовок
             Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
                 Row(
                     Modifier.fillMaxWidth().padding(8.dp),
@@ -93,30 +92,17 @@ fun CalendarScreen(
                     IconButton({ vm.previousMonth() }) {
                         Icon(Icons.Default.ChevronLeft, "Назад")
                     }
-
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            ym.month.getDisplayName(
-                                TextStyle.FULL_STANDALONE,
-                                Locale("ru")
-                            ).replaceFirstChar { it.uppercase() },
+                            ym.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("ru")).replaceFirstChar { it.uppercase() },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            ym.year.toString(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(ym.year.toString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
                     Row {
                         IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                Icons.Default.Settings,
-                                "Настройки",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Default.Settings, "Настройки", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton({ vm.nextMonth() }) {
                             Icon(Icons.Default.ChevronRight, "Вперед")
@@ -139,88 +125,49 @@ fun CalendarScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Список праздников месяца
-            Text(
-                "Праздники в этом месяце:",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            Text("Праздники в этом месяце:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            Column(
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                val monthHolidays = days
-                    .filterNotNull()
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                val monthHolidays = days.filterNotNull()
                     .flatMap { date ->
                         val h = vm.getMajorHoliday(date)
                         if (h != null) listOf(h to date.dayOfMonth) else emptyList()
-                    }
-                    .distinctBy { it.first.name }
+                    }.distinctBy { it.first.name }
 
                 if (monthHolidays.isNotEmpty()) {
                     monthHolidays.forEach { (h, day) ->
                         Card(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            )
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    h.emoji,
-                                    style = MaterialTheme.typography.headlineMedium
-                                )
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(h.emoji, style = MaterialTheme.typography.headlineMedium)
                                 Spacer(Modifier.width(12.dp))
                                 Column {
-                                    Text(
-                                        h.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        "$day ${
-                                            ym.month.getDisplayName(
-                                                TextStyle.FULL_STANDALONE,
-                                                Locale("ru")
-                                            )
-                                        }",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Text(h.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                    Text("$day ${ym.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale("ru"))}",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
                     }
                 } else {
-                    Text(
-                        "Нет важных праздников",
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Нет важных праздников", Modifier.fillMaxWidth().padding(16.dp), textAlign = TextAlign.Center)
                 }
             }
         }
     }
 
-    // Диалог с праздниками
+    // Диалог
     if (showDialog) {
         HolidayDialog(
             holidays = selHolidays,
             currentMonth = dialogDate?.monthValue ?: today.monthValue,
-            onDismiss = { vm.clearSelection() }
+            isLoading = loading,
+            errorMessage = errorMsg,
+            isOffline = offline,
+            onDismiss = { vm.clearSelection() },
+            onClearError = { vm.clearError() }
         )
     }
 }

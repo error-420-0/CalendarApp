@@ -8,6 +8,7 @@ import com.example.calendarapp.data.HolidaysRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.net.UnknownHostException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
@@ -22,7 +23,10 @@ class CalendarViewModel : ViewModel() {
     val daysInMonth = MutableStateFlow<List<LocalDate?>>(emptyList())
     val today = MutableStateFlow(LocalDate.now())
     val showDialog = MutableStateFlow(false)
-    val dialogDate = MutableStateFlow<LocalDate?>(null) // Для диалога
+    val dialogDate = MutableStateFlow<LocalDate?>(null)
+    val isLoading = MutableStateFlow(false)
+    val errorMessage = MutableStateFlow<String?>(null)
+    val isOffline = MutableStateFlow(false)
 
     init {
         updateDays()
@@ -36,9 +40,8 @@ class CalendarViewModel : ViewModel() {
                 val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
                 delay(ChronoUnit.MILLIS.between(now, midnight) + 1000)
                 today.value = LocalDate.now()
-                val newMonth = YearMonth.now()
-                if (newMonth != currentYearMonth.value) {
-                    currentYearMonth.value = newMonth
+                if (YearMonth.now() != currentYearMonth.value) {
+                    currentYearMonth.value = YearMonth.now()
                     updateDays()
                 }
             }
@@ -56,18 +59,28 @@ class CalendarViewModel : ViewModel() {
     }
 
     fun onDateClick(date: LocalDate) {
+        println("VIEWMODEL: onDateClick called for $date")
         selectedDate.value = date
-        dialogDate.value = date // Сохраняем дату для диалога
+        dialogDate.value = date
 
         val major = listOfNotNull(repo.getMajorHoliday(date.monthValue, date.dayOfMonth))
         selectedHolidays.value = major
         showDialog.value = true
 
+        // Загружаем с сайта
         viewModelScope.launch {
+            println("VIEWMODEL: Starting loadHolidaysForDate")
+            isLoading.value = true
+            errorMessage.value = null
+            isOffline.value = false
+
             try {
                 val parsed = withContext(Dispatchers.IO) {
+                    println("VIEWMODEL: Calling CalendRuParser for ${date.monthValue}/${date.dayOfMonth}")
                     CalendRuParser.getHolidaysForDay(date.monthValue, date.dayOfMonth)
                 }
+
+                println("VIEWMODEL: Got ${parsed.size} parsed holidays")
 
                 if (parsed.isNotEmpty()) {
                     val all = mutableListOf<Holiday>()
@@ -77,10 +90,21 @@ class CalendarViewModel : ViewModel() {
                             all.add(h)
                         }
                     }
+                    println("VIEWMODEL: Total holidays: ${all.size}")
                     selectedHolidays.value = all
                 }
+
+                isLoading.value = false
+
+            } catch (e: UnknownHostException) {
+                println("VIEWMODEL: No internet")
+                isLoading.value = false
+                isOffline.value = true
+                errorMessage.value = "Нет интернета. Показаны основные праздники."
             } catch (e: Exception) {
-                // Игнорируем ошибки парсинга
+                println("VIEWMODEL: Error - ${e.message}")
+                isLoading.value = false
+                errorMessage.value = "Ошибка загрузки"
             }
         }
     }
@@ -103,6 +127,13 @@ class CalendarViewModel : ViewModel() {
         selectedDate.value = null
         selectedHolidays.value = emptyList()
         showDialog.value = false
+        isLoading.value = false
+        errorMessage.value = null
+        isOffline.value = false
+    }
+
+    fun clearError() {
+        errorMessage.value = null
     }
 
     override fun onCleared() {

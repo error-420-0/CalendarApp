@@ -3,8 +3,27 @@ package com.example.calendarapp.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import java.net.UnknownHostException
+import java.security.cert.X509Certificate
+import javax.net.ssl.*
 
 object CalendRuParser {
+
+    private val unsafeClient = createUnsafeClient()
+
+    private fun createUnsafeClient(): SSLContext {
+        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        })
+
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+        HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
+        HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+        return sslContext
+    }
 
     // Ключевые слова которые точно есть в названиях праздников
     private val holidayKeywords = listOf(
@@ -23,9 +42,11 @@ object CalendRuParser {
         return withContext(Dispatchers.IO) {
             try {
                 val url = "https://www.dacha6.ru/calendar/$month/$day/"
+
                 val doc = Jsoup.connect(url)
-                    .userAgent("Mozilla/5.0")
-                    .timeout(8000)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(10000)
+                    .sslSocketFactory(unsafeClient.socketFactory)
                     .get()
 
                 val fullText = doc.body().text()
@@ -55,34 +76,27 @@ object CalendRuParser {
                         var current = ""
 
                         for (item in items) {
-                            // Проверяем мусор
                             if (item in garbageWords) continue
 
-                            // Если это начало нового праздника (содержит ключевое слово)
                             val isNewHoliday = holidayKeywords.any { kw ->
                                 item.contains(kw, ignoreCase = true)
                             }
 
                             if (isNewHoliday) {
-                                // Сохраняем предыдущий
                                 if (current.isNotEmpty() && current.length > 5) {
                                     result.add(current)
                                 }
                                 current = item
                             } else if (current.isNotEmpty()) {
-                                // Дополняем текущий
                                 current += " $item"
                             }
                         }
 
-                        // Добавляем последний
                         if (current.isNotEmpty() && current.length > 5) {
                             result.add(current)
                         }
 
-                        // Создаём Holiday объекты
                         for (name in result) {
-                            // Ещё раз проверяем что это не мусор
                             if (name.length in 6..200 &&
                                 !garbageWords.any { name.equals(it, ignoreCase = true) }) {
                                 holidays.add(
@@ -100,6 +114,8 @@ object CalendRuParser {
                 }
 
                 holidays
+            } catch (e: UnknownHostException) {
+                throw e
             } catch (e: Exception) {
                 emptyList()
             }

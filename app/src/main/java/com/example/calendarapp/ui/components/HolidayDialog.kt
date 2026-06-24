@@ -17,7 +17,11 @@ import com.example.calendarapp.data.Holiday
 fun HolidayDialog(
     holidays: List<Holiday>,
     currentMonth: Int,
-    onDismiss: () -> Unit
+    isLoading: Boolean,
+    errorMessage: String?,
+    isOffline: Boolean,
+    onDismiss: () -> Unit,
+    onClearError: () -> Unit
 ) {
     val pageSize = 5
     var currentPage by remember { mutableIntStateOf(0) }
@@ -32,6 +36,13 @@ fun HolidayDialog(
 
     val topEmoji = majorHoliday?.emoji ?: getMonthEmoji(currentMonth)
 
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) {
+            kotlinx.coroutines.delay(3000)
+            onClearError()
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -41,12 +52,12 @@ fun HolidayDialog(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (holidays.isEmpty()) {
+                if (holidays.isEmpty() && !isLoading) {
                     Text(getMonthEmoji(currentMonth), fontSize = 64.sp)
                     Spacer(Modifier.height(16.dp))
                     Text("Обычный день", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    Text("Загрузка праздников...", style = MaterialTheme.typography.bodyMedium)
+                    Text("Праздников не найдено", style = MaterialTheme.typography.bodyMedium)
                 } else {
                     Text(
                         "$topEmoji $dateInfo",
@@ -60,6 +71,43 @@ fun HolidayDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (errorMessage != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    if (isOffline) "🌐" else "⚠️",
+                                    fontSize = 20.sp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    errorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+
+                    if (isLoading) {
+                        Spacer(Modifier.height(12.dp))
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Загрузка праздников...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     Spacer(Modifier.height(16.dp))
 
                     val start = currentPage * pageSize
